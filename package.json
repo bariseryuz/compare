@@ -1,0 +1,45 @@
+{
+  "name": "doc-diff-app",
+  "version": "1.0.0",
+  "description": "Desktop document comparison tool using Electron and Node.js",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.vertilux.doccompare",
+    "productName": "DocCompare",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DocCompare",
+      "deleteAppDataOnUninstall": false
+    }
+  },
+  "dependencies": {
+    "csv-parse": "^5.0.0",
+    "diff": "^5.1.0",
+    "electron-is-dev": "^2.0.0",
+    "mammoth": "^1.11.0",
+    "pdf-parse": "^1.1.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^24.0.0",
+    "electron-builder": "^26.8.1"
+  }
+}
