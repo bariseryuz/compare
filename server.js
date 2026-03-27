@@ -78,6 +78,7 @@ app.post('/api/compare', upload.fields([{ name: 'file1', maxCount: 1 }, { name: 
   }
 });
 
+app.use('/symbols', express.static(path.join(__dirname, 'symbols')));
 app.use(express.static(path.join(__dirname, 'public-web')));
 
 app.listen(PORT, '0.0.0.0', () => {

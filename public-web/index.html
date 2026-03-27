@@ -3,61 +3,109 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DocCompare API</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #1e293b; }
-    code { background: #f1f5f9; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
-    h1 { font-size: 1.35rem; }
-    .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
-    button { background: #4f46e5; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
-    pre { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 6px; overflow: auto; font-size: 12px; max-height: 320px; }
-    label { display: block; margin: 0.5rem 0 0.25rem; font-size: 0.875rem; font-weight: 600; }
-    input[type=file] { margin-bottom: 0.5rem; }
-  </style>
+  <title>DocCompare</title>
+  <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <h1>DocCompare (web API)</h1>
-  <p>This is the <strong>server</strong> deployment. The full desktop app uses Electron on your PC (<code>npm start</code>).</p>
-  <p><strong>Health:</strong> <a href="/health">GET /health</a></p>
-  <p><strong>Compare:</strong> <code>POST /api/compare</code> — multipart form fields <code>file1</code> and <code>file2</code>. Response: JSON <code>{ diff, meta }</code>.</p>
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <img class="logo-icon" src="/symbols/logo.svg" alt="DocCompare Logo" width="40" height="40">
+        <h1>DocCompare</h1>
+      </div>
+      <p class="tagline">Document Comparison Tool</p>
+      <p class="help-banner">
+        <strong>Web:</strong> Files are uploaded to this server only to compare text and are not stored. The desktop app (<code>npm start</code>) keeps everything on your PC. After you compare, read the summary first, then scroll the colored sections for detail.
+      </p>
+      <p class="web-subnote">API: <a href="/health" style="color: inherit;">GET /health</a> · <code>POST /api/compare</code> (multipart <code>file1</code>, <code>file2</code>)</p>
+    </div>
 
-  <div class="box">
-    <h2 style="font-size:1rem;margin-top:0;">Try it</h2>
-    <label>First file</label>
-    <input type="file" id="f1" />
-    <label>Second file</label>
-    <input type="file" id="f2" />
-    <p><button type="button" id="go">Compare</button></p>
-    <p id="status" style="font-size:0.875rem;color:#64748b;"></p>
-    <pre id="out" hidden></pre>
+    <div class="main">
+      <div class="card">
+        <div class="files-grid">
+          <div class="file-box">
+            <label class="file-label"><img src="/symbols/add.svg" alt="" width="16" height="16" style="margin-right: 4px;"> First document</label>
+            <input type="file" class="file-input-hidden" id="file1Input" aria-label="Choose first file">
+            <div class="file-input-zone" id="file1Zone" tabindex="0" role="button">
+              <img class="upload-icon" src="/symbols/folder.svg" alt="" width="36" height="36">
+              <div class="upload-text">Select file</div>
+              <div class="upload-subtext">PDF, Word, Excel, CSV, or plain text</div>
+            </div>
+            <div class="file-info" id="file1" style="display: none;"></div>
+          </div>
+
+          <div class="file-box">
+            <label class="file-label"><img src="/symbols/add.svg" alt="" width="16" height="16" style="margin-right: 4px;"> Second document</label>
+            <input type="file" class="file-input-hidden" id="file2Input" aria-label="Choose second file">
+            <div class="file-input-zone" id="file2Zone" tabindex="0" role="button">
+              <img class="upload-icon" src="/symbols/folder.svg" alt="" width="36" height="36">
+              <div class="upload-text">Select file</div>
+              <div class="upload-subtext">PDF, Word, Excel, CSV, or plain text</div>
+            </div>
+            <div class="file-info" id="file2" style="display: none;"></div>
+          </div>
+        </div>
+
+        <div class="action-section">
+          <button type="button" class="btn btn-primary" id="compare">
+            <img class="btn-icon" src="/symbols/attach.svg" alt="" width="20" height="20">
+            <span class="btn-text">Compare Documents</span>
+          </button>
+          <div id="status"></div>
+          <div id="progress" style="display: none;">
+            <div class="progress-bar">
+              <div class="progress-fill"></div>
+            </div>
+            <div class="progress-text">Processing files...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card results-section" id="resultsCard">
+        <div class="results-header">
+          <div class="results-title"><img src="/symbols/check.svg" alt="" width="24" height="24" style="margin-right: 8px;"> What we found</div>
+          <div class="results-stats">
+            <div class="stat">
+              <div class="stat-value" id="changeCount">0</div>
+              <div class="stat-label">Lines that don’t match (total)</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value" id="addedCount">0</div>
+              <div class="stat-label" id="statLabelSecond">Only in second document</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value" id="removedCount">0</div>
+              <div class="stat-label" id="statLabelFirst">Only in first document</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value" id="mutualCount">—</div>
+              <div class="stat-label">Lines that match in both</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value" id="similarityStat">—</div>
+              <div class="stat-label">Roughly how much is the same</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="summaryPanel" class="summary-panel" hidden></div>
+
+        <p class="diff-legend-intro" id="diffLegendIntro">Colors below (after you compare):</p>
+        <div class="diff-legend" id="diffLegend"></div>
+
+        <div class="diff-viewer">
+          <div id="result" class="diff-output-container"></div>
+        </div>
+
+        <div class="toolbar">
+          <button type="button" class="btn btn-secondary" id="downloadBtn"><img src="/symbols/download.svg" alt="" width="16" height="16" style="margin-right: 6px;"> Download Report</button>
+          <button type="button" class="btn btn-secondary" id="copyBtn"><img src="/symbols/copy.svg" alt="" width="16" height="16" style="margin-right: 6px;"> Copy Results</button>
+          <button type="button" class="btn btn-secondary" id="clearBtn"><img src="/symbols/refresh.svg" alt="" width="16" height="16" style="margin-right: 6px;"> New Comparison</button>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <script>
-    document.getElementById('go').addEventListener('click', async () => {
-      const a = document.getElementById('f1').files[0];
-      const b = document.getElementById('f2').files[0];
-      const status = document.getElementById('status');
-      const out = document.getElementById('out');
-      out.hidden = true;
-      if (!a || !b) {
-        status.textContent = 'Choose two files.';
-        return;
-      }
-      status.textContent = 'Working…';
-      const fd = new FormData();
-      fd.append('file1', a);
-      fd.append('file2', b);
-      try {
-        const r = await fetch('/api/compare', { method: 'POST', body: fd });
-        const j = await r.json();
-        status.textContent = r.ok ? 'Done — JSON below.' : 'Error: ' + (j.error || r.status);
-        out.textContent = JSON.stringify(j, null, 2);
-        out.hidden = false;
-      } catch (e) {
-        status.textContent = 'Request failed: ' + e.message;
-      }
-    });
-  </script>
+  <script src="/app.js"></script>
 </body>
 </html>
