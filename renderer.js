@@ -41,6 +41,106 @@ function buildDiffLegendHtml(meta) {
 const DEFAULT_LABEL_SECOND = 'Only in second document';
 const DEFAULT_LABEL_FIRST = 'Only in first document';
 
+function createSpanForDiffPart(part) {
+  const span = document.createElement('span');
+  const isErrorLine = typeof part.value === 'string' && part.value.startsWith('Error:');
+  if (isErrorLine) {
+    span.className = 'diff-error';
+    span.setAttribute('data-prefix', '! ');
+  } else if (part.collapsed) {
+    span.className = 'diff-omitted';
+    span.setAttribute('data-prefix', '  ');
+  } else if (part.added) {
+    span.className = 'diff-added';
+    span.setAttribute('data-prefix', '2 │ ');
+  } else if (part.removed) {
+    span.className = 'diff-removed';
+    span.setAttribute('data-prefix', '1 │ ');
+  } else {
+    span.className = 'diff-mutual';
+    span.setAttribute('data-prefix', '≡ ');
+  }
+  span.textContent = part.value;
+  return span;
+}
+
+/**
+ * Three sections: first file only, second file only, both files.
+ */
+function renderDiffSections(diffData, file1Path, file2Path, resultArea) {
+  resultArea.innerHTML = '';
+  const name1 = file1Path.split(/[\\/]/).pop() || 'Document 1';
+  const name2 = file2Path.split(/[\\/]/).pop() || 'Document 2';
+
+  const hasError = diffData.some(
+    (p) => typeof p.value === 'string' && p.value.startsWith('Error:')
+  );
+  if (hasError) {
+    diffData.forEach((part) => {
+      resultArea.appendChild(createSpanForDiffPart(part));
+    });
+    return;
+  }
+
+  const removedParts = [];
+  const addedParts = [];
+  const mutualParts = [];
+  diffData.forEach((part) => {
+    if (part.added) addedParts.push(part);
+    else if (part.removed) removedParts.push(part);
+    else mutualParts.push(part);
+  });
+
+  function makeSection(heading, intro, parts) {
+    const section = document.createElement('section');
+    section.className = 'diff-section';
+    const h = document.createElement('h3');
+    h.className = 'diff-section-heading';
+    h.textContent = heading;
+    const introEl = document.createElement('p');
+    introEl.className = 'diff-section-intro';
+    introEl.textContent = intro;
+    const body = document.createElement('div');
+    body.className = 'diff-section-body';
+    if (parts.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'diff-section-empty';
+      empty.textContent = 'There is no text in this category.';
+      body.appendChild(empty);
+    } else {
+      parts.forEach((part) => {
+        body.appendChild(createSpanForDiffPart(part));
+      });
+    }
+    section.appendChild(h);
+    section.appendChild(introEl);
+    section.appendChild(body);
+    return section;
+  }
+
+  const introFirst = removedParts.length
+    ? `The following content appears only in the first document (${name1}). It does not appear in the second document (${name2}).`
+    : `There is no content that appears only in the first document (${name1}) and not in the second (${name2}).`;
+
+  const introSecond = addedParts.length
+    ? `The following content appears only in the second document (${name2}). It does not appear in the first document (${name1}).`
+    : `There is no content that appears only in the second document (${name2}) and not in the first (${name1}).`;
+
+  const introBoth = mutualParts.length
+    ? `The following content appears in both documents—the same text in the first file (${name1}) and the second file (${name2}). Very long matching sections may be shortened in the middle so you can scroll to differences more easily.`
+    : `There is no shared text in this category.`;
+
+  resultArea.appendChild(
+    makeSection(`1 — Details only in the first document (${name1})`, introFirst, removedParts)
+  );
+  resultArea.appendChild(
+    makeSection(`2 — Details only in the second document (${name2})`, introSecond, addedParts)
+  );
+  resultArea.appendChild(
+    makeSection(`3 — Details in both documents`, introBoth, mutualParts)
+  );
+}
+
 runWhenDomReady(initializeApp);
 
 function initializeApp() {
@@ -122,6 +222,14 @@ function initializeApp() {
         if (e.dataTransfer && e.dataTransfer.files.length > 0) {
           const file = e.dataTransfer.files[0];
           if (file.path) {
+            if (window.electronAPI.validateFilePath) {
+              const check = await window.electronAPI.validateFilePath(file.path);
+              if (!check.valid) {
+                const st = document.getElementById('status');
+                if (st) st.textContent = `⚠️ ${check.reason || 'Invalid file.'}`;
+                return;
+              }
+            }
             assignPath(file.path);
             await displayFileInfo(file.path, spanElement, zoneElement);
           }
@@ -203,37 +311,16 @@ function initializeApp() {
                 : '—';
           }
 
-          resultArea.innerHTML = ''; 
           let added = 0;
           let removed = 0;
 
-          diffData.forEach(part => {
+          diffData.forEach((part) => {
             const n = countLogicalLines(part.value);
             if (part.added) added += n;
             if (part.removed) removed += n;
-
-            const span = document.createElement('span');
-            const isErrorLine = typeof part.value === 'string' && part.value.startsWith('Error:');
-            if (isErrorLine) {
-              span.className = 'diff-error';
-              span.setAttribute('data-prefix', '! ');
-            } else if (part.collapsed) {
-              span.className = 'diff-omitted';
-              span.setAttribute('data-prefix', '  ');
-            } else if (part.added) {
-              span.className = 'diff-added';
-              span.setAttribute('data-prefix', '2 │ ');
-            } else if (part.removed) {
-              span.className = 'diff-removed';
-              span.setAttribute('data-prefix', '1 │ ');
-            } else {
-              span.className = 'diff-mutual';
-              span.setAttribute('data-prefix', '≡ ');
-            }
-            
-            span.textContent = part.value;
-            resultArea.appendChild(span);
           });
+
+          renderDiffSections(diffData, file1Path, file2Path, resultArea);
           
           changeCount.textContent = added + removed;
           addedCount.textContent = added;
@@ -306,27 +393,51 @@ function initializeApp() {
           }
           report += `------------------------------------------------\n\n`;
 
-          report += `DETAILED LOG\n`;
+          report += `DETAILED LOG (THREE SECTIONS)\n`;
           report += `Line tags: [2] = only second file, [1] = only first file, [=] = both files, […] = long match shortened, [!] = error\n`;
           report += `------------------------------------------------\n\n`;
 
-          // Pull data from the UI spans to maintain formatting
-          const segments = resultArea.querySelectorAll('span');
-          segments.forEach(seg => {
-            const prefix =
-              seg.className === 'diff-added'
-                ? '[2] '
-                : seg.className === 'diff-removed'
-                  ? '[1] '
-                  : seg.className === 'diff-mutual'
-                    ? '[=] '
-                    : seg.className === 'diff-error'
-                      ? '[!] '
-                      : seg.className === 'diff-omitted'
-                        ? '[…] '
-                        : '    ';
-            report += `${prefix}${seg.textContent}\n`;
-          });
+          const sections = resultArea.querySelectorAll('.diff-section');
+          if (sections.length) {
+            sections.forEach((sec) => {
+              const heading = sec.querySelector('.diff-section-heading');
+              const intro = sec.querySelector('.diff-section-intro');
+              if (heading) report += `${heading.textContent}\n`;
+              if (intro) report += `${intro.textContent}\n\n`;
+              sec.querySelectorAll('.diff-section-body span').forEach((seg) => {
+                const prefix =
+                  seg.className === 'diff-added'
+                    ? '[2] '
+                    : seg.className === 'diff-removed'
+                      ? '[1] '
+                      : seg.className === 'diff-mutual'
+                        ? '[=] '
+                        : seg.className === 'diff-error'
+                          ? '[!] '
+                          : seg.className === 'diff-omitted'
+                            ? '[…] '
+                            : '    ';
+                report += `${prefix}${seg.textContent}\n`;
+              });
+              report += `\n`;
+            });
+          } else {
+            resultArea.querySelectorAll('span').forEach((seg) => {
+              const prefix =
+                seg.className === 'diff-added'
+                  ? '[2] '
+                  : seg.className === 'diff-removed'
+                    ? '[1] '
+                    : seg.className === 'diff-mutual'
+                      ? '[=] '
+                      : seg.className === 'diff-error'
+                        ? '[!] '
+                        : seg.className === 'diff-omitted'
+                          ? '[…] '
+                          : '    ';
+              report += `${prefix}${seg.textContent}\n`;
+            });
+          }
 
           const safeName = (name) =>
             String(name || 'file').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0, 120);

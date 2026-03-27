@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocCompare API</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #1e293b; }
+    code { background: #f1f5f9; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
+    h1 { font-size: 1.35rem; }
+    .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+    button { background: #4f46e5; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 6px; overflow: auto; font-size: 12px; max-height: 320px; }
+    label { display: block; margin: 0.5rem 0 0.25rem; font-size: 0.875rem; font-weight: 600; }
+    input[type=file] { margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>DocCompare (web API)</h1>
+  <p>This is the <strong>server</strong> deployment. The full desktop app uses Electron on your PC (<code>npm start</code>).</p>
+  <p><strong>Health:</strong> <a href="/health">GET /health</a></p>
+  <p><strong>Compare:</strong> <code>POST /api/compare</code> — multipart form fields <code>file1</code> and <code>file2</code>. Response: JSON <code>{ diff, meta }</code>.</p>
+
+  <div class="box">
+    <h2 style="font-size:1rem;margin-top:0;">Try it</h2>
+    <label>First file</label>
+    <input type="file" id="f1" />
+    <label>Second file</label>
+    <input type="file" id="f2" />
+    <p><button type="button" id="go">Compare</button></p>
+    <p id="status" style="font-size:0.875rem;color:#64748b;"></p>
+    <pre id="out" hidden></pre>
+  </div>
+
+  <script>
+    document.getElementById('go').addEventListener('click', async () => {
+      const a = document.getElementById('f1').files[0];
+      const b = document.getElementById('f2').files[0];
+      const status = document.getElementById('status');
+      const out = document.getElementById('out');
+      out.hidden = true;
+      if (!a || !b) {
+        status.textContent = 'Choose two files.';
+        return;
+      }
+      status.textContent = 'Working…';
+      const fd = new FormData();
+      fd.append('file1', a);
+      fd.append('file2', b);
+      try {
+        const r = await fetch('/api/compare', { method: 'POST', body: fd });
+        const j = await r.json();
+        status.textContent = r.ok ? 'Done — JSON below.' : 'Error: ' + (j.error || r.status);
+        out.textContent = JSON.stringify(j, null, 2);
+        out.hidden = false;
+      } catch (e) {
+        status.textContent = 'Request failed: ' + e.message;
+      }
+    });
+  </script>
+</body>
+</html>
