@@ -17,7 +17,7 @@
       </div>
       <p class="tagline">Document Comparison Tool</p>
       <p class="help-banner">
-        <strong>One workspace:</strong> add <strong>any files</strong> or a folder at the top, then use <strong>AI</strong> or <strong>compare</strong> two files below. The server never changes your originals.
+        <strong>One workspace:</strong> add any files or a folder at the top, then use <strong>AI</strong> with your prompt. All file types are accepted. The app never overwrites your files.
       </p>
     </div>
 
@@ -47,7 +47,7 @@
         <div class="action-section analyze-actions">
           <button type="button" class="btn btn-primary" id="analyzeBtn">
             <img class="btn-icon" src="/symbols/attach.svg" alt="" width="20" height="20">
-            <span class="btn-text">Run AI analysis</span>
+            <span class="btn-text">Search</span>
           </button>
           <div id="analyzeStatus" class="inline-status"></div>
         </div>
@@ -55,44 +55,12 @@
 
         <hr class="workspace-divider" />
 
-        <h3 class="workspace-subheading">Compare two documents</h3>
-        <p class="workspace-compare-hint">Pick two files for a diff (separate from the list above).</p>
-        <div class="files-grid">
-          <div class="file-box">
-            <label class="file-label"><img src="/symbols/add.svg" alt="" width="16" height="16" style="margin-right: 4px;"> First document</label>
-            <input type="file" class="file-input-hidden" id="file1Input" aria-label="Choose first file">
-            <div class="file-input-zone" id="file1Zone" tabindex="0" role="button">
-              <img class="upload-icon" src="/symbols/folder.svg" alt="" width="36" height="36">
-              <div class="upload-text">Select file</div>
-              <div class="upload-subtext">Any file type</div>
-            </div>
-            <div class="file-info" id="file1" style="display: none;"></div>
+        <div id="status"></div>
+        <div id="progress" style="display: none;">
+          <div class="progress-bar">
+            <div class="progress-fill"></div>
           </div>
-
-          <div class="file-box">
-            <label class="file-label"><img src="/symbols/add.svg" alt="" width="16" height="16" style="margin-right: 4px;"> Second document</label>
-            <input type="file" class="file-input-hidden" id="file2Input" aria-label="Choose second file">
-            <div class="file-input-zone" id="file2Zone" tabindex="0" role="button">
-              <img class="upload-icon" src="/symbols/folder.svg" alt="" width="36" height="36">
-              <div class="upload-text">Select file</div>
-              <div class="upload-subtext">Any file type</div>
-            </div>
-            <div class="file-info" id="file2" style="display: none;"></div>
-          </div>
-        </div>
-
-        <div class="action-section">
-          <button type="button" class="btn btn-primary" id="compare">
-            <img class="btn-icon" src="/symbols/attach.svg" alt="" width="20" height="20">
-            <span class="btn-text">Compare Documents</span>
-          </button>
-          <div id="status"></div>
-          <div id="progress" style="display: none;">
-            <div class="progress-bar">
-              <div class="progress-fill"></div>
-            </div>
-            <div class="progress-text">Processing files...</div>
-          </div>
+          <div class="progress-text">Processing files...</div>
         </div>
       </div>
 

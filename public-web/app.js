@@ -299,8 +299,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 
-  setupZone(file1Zone, file1Input, file1Span);
-  setupZone(file2Zone, file2Input, file2Span);
+  if (file1Zone && file1Input && file1Span) {
+    setupZone(file1Zone, file1Input, file1Span);
+  }
+  if (file2Zone && file2Input && file2Span) {
+    setupZone(file2Zone, file2Input, file2Span);
+  }
 
   if (analyzeUploadZone && analyzeFilesInput) {
     analyzeUploadZone.addEventListener('click', (e) => {
@@ -457,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  compare.addEventListener('click', async () => {
+  if (compare && file1Input && file2Input) compare.addEventListener('click', async () => {
     const a = file1Input.files[0];
     const b = file2Input.files[0];
     if (!a || !b) {
@@ -650,8 +654,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const a = file1Input.files[0];
-      const b = file2Input.files[0];
+      const a = file1Input && file1Input.files ? file1Input.files[0] : null;
+      const b = file2Input && file2Input.files ? file2Input.files[0] : null;
       if (!a || !b) {
         statusDiv.textContent = '⚠️ Run a comparison with two files before downloading.';
         return;
@@ -767,12 +771,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   clearBtn.addEventListener('click', () => {
-    file1Input.value = '';
-    file2Input.value = '';
-    file1Span.style.display = 'none';
-    file2Span.style.display = 'none';
-    file1Zone.classList.remove('active');
-    file2Zone.classList.remove('active');
+    if (file1Input) file1Input.value = '';
+    if (file2Input) file2Input.value = '';
+    if (file1Span) file1Span.style.display = 'none';
+    if (file2Span) file2Span.style.display = 'none';
+    if (file1Zone) file1Zone.classList.remove('active');
+    if (file2Zone) file2Zone.classList.remove('active');
     analyzeFileList = [];
     updateAnalyzeSummary();
     if (analyzePrompt) analyzePrompt.value = '';
