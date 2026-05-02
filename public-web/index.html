@@ -29,7 +29,7 @@
         <p class="workspace-lead">Start here: add <strong>any file types</strong> or a whole folder. Then scroll down for AI or side-by-side compare.</p>
 
         <label class="file-label"><img src="/symbols/add.svg" alt="" width="16" height="16" style="margin-right: 4px;"> Add files</label>
-        <div class="file-input-zone ai-upload-single" id="analyzeUploadZone" tabindex="0" role="button" aria-label="Add files or drag and drop">
+        <label class="file-input-zone ai-upload-single" id="analyzeUploadZone" for="analyzeFilesInput" aria-label="Add files or drag and drop">
           <img class="upload-icon" src="/symbols/folder.svg" alt="" width="36" height="36">
           <div class="upload-text">Add documents</div>
           <div class="upload-subtext">Click or drag files here · any file type · or use Add folder</div>
@@ -38,7 +38,7 @@
             <span class="ai-zone-sep" aria-hidden="true">·</span>
             <button type="button" class="btn-text btn-zone-clear" id="analyzeClearFiles" data-analyze-action="clear">Clear list</button>
           </div>
-        </div>
+        </label>
         <p class="analyze-file-summary" id="analyzeFileSummary">No files in your list yet.</p>
 
         <h3 class="workspace-subheading">AI analysis</h3>

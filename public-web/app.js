@@ -309,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (analyzeUploadZone && analyzeFilesInput) {
     analyzeUploadZone.addEventListener('click', (e) => {
       if (e.target.closest('[data-analyze-action]')) return;
+      // Label `for="analyzeFilesInput"` handles native open; keep as fallback.
       analyzeFilesInput.click();
     });
     analyzeUploadZone.addEventListener('keydown', (e) => {
