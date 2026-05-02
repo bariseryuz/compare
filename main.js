@@ -1,7 +1,9 @@
+require('dotenv').config();
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { runCompare, LARGE_FILE_THRESHOLD } = require('./compare-core');
+const { runCompareGemini } = require('./generativecomp');
 
 let mainWindow;
 
@@ -86,5 +88,8 @@ ipcMain.handle('get-file-size', async (event, filepath) => {
 });
 
 ipcMain.handle('compare-files', async (event, file1, file2) => {
+  if (process.env.COMPARE_MODE === 'gemini') {
+    return runCompareGemini(file1, file2);
+  }
   return runCompare(file1, file2);
 });

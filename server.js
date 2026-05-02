@@ -2,12 +2,14 @@
  * HTTP API for Railway / cloud hosting (no Electron — no GUI libraries required).
  * Desktop app: use `npm start` (Electron). Server: `node server.js` or `npm run start:web`.
  */
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { runCompare } = require('./compare-core');
+const { runCompareGemini } = require('./generativecomp');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -64,7 +66,8 @@ app.post('/api/compare', upload.fields([{ name: 'file1', maxCount: 1 }, { name: 
   } catch {}
 
   try {
-    const result = await runCompare(p1, p2);
+    const result =
+      process.env.COMPARE_MODE === 'gemini' ? await runCompareGemini(p1, p2) : await runCompare(p1, p2);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message || 'Compare failed' });

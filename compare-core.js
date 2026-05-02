@@ -31,6 +31,8 @@ function lineCountText(s) {
   return parts.length;
 }
 
+const MAX_NEUTRAL_CHARS_BEFORE_COLLAPSE = 12000;
+
 function collapseUnchangedChunks(changes, maxLines = 42) {
   const out = [];
   for (const part of changes) {
@@ -38,12 +40,26 @@ function collapseUnchangedChunks(changes, maxLines = 42) {
       out.push(part);
       continue;
     }
-    const n = lineCountText(part.value);
-    if (n <= maxLines) {
+    const val = part.value || '';
+    const n = lineCountText(val);
+    const charLen = val.length;
+    if (n <= maxLines && charLen <= MAX_NEUTRAL_CHARS_BEFORE_COLLAPSE) {
       out.push(part);
       continue;
     }
-    const lines = part.value.replace(/\r\n/g, '\n').split('\n');
+    if (charLen > MAX_NEUTRAL_CHARS_BEFORE_COLLAPSE && n < maxLines) {
+      const headC = 4500;
+      const tailC = 4500;
+      const hidden = Math.max(0, charLen - headC - tailC);
+      out.push({
+        value: `${val.slice(0, headC)}\n\n⋯ ─── ${hidden.toLocaleString()} identical characters (same in both documents) ─── ⋯\n\n${val.slice(-tailC)}`,
+        added: false,
+        removed: false,
+        collapsed: true
+      });
+      continue;
+    }
+    const lines = val.replace(/\r\n/g, '\n').split('\n');
     if (lines.length && lines[lines.length - 1] === '') lines.pop();
     const headN = 18;
     const tailN = 18;
@@ -58,6 +74,16 @@ function collapseUnchangedChunks(changes, maxLines = 42) {
     });
   }
   return out;
+}
+
+/** Collapses whitespace so line breaks / spacing do not dominate the diff (layout-tolerant). */
+function normalizeTextForWordDiff(s) {
+  return String(s || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[\t \u00a0]+/g, ' ')
+    .replace(/\n+/g, ' ')
+    .replace(/ +/g, ' ')
+    .trim();
 }
 
 function countMutualLines(changes) {
@@ -118,7 +144,8 @@ function buildExcelSheetMeta(file1Path, file2Path) {
   }
 }
 
-function buildComparisonMeta(file1, file2, changes, excelMeta) {
+function buildComparisonMeta(file1, file2, changes, excelMeta, options = {}) {
+  const wordDiff = Boolean(options.wordDiff);
   const base1 = path.basename(file1);
   const base2 = path.basename(file2);
   const kind1 = docKindFromExt(path.extname(file1));
@@ -134,6 +161,9 @@ function buildComparisonMeta(file1, file2, changes, excelMeta) {
     plainEnglish = `Nothing looks different between “${base1}” and “${base2}” in the text we could read.`;
     plainEnglishSub =
       'If you expected changes, the format may hide them (for example scanned PDFs). Your original files were not modified.';
+  } else if (wordDiff) {
+    plainEnglish = `Roughly ${diffLines.total.toLocaleString()} word-level differences between the two files (layout and line breaks are mostly ignored).`;
+    plainEnglishSub = `About ${sim.similarityPct}% of the text matches when compared word-by-word after normalizing spaces and line breaks. Green = only in “${base2}”. Red = only in “${base1}”. Gray = same in both. For a part-number–focused report, set COMPARE_MODE=gemini and GEMINI_API_KEY in .env.`;
   } else {
     plainEnglish = `Roughly ${diffLines.total.toLocaleString()} lines are not the same between the two files.`;
     plainEnglishSub = `About ${sim.similarityPct}% of the text matches in both files. Green highlights text that appears only in “${base2}”. Red highlights text that appears only in “${base1}”. Light gray is text that appears in both. The app never edits your files—it only shows a read-only comparison.`;
@@ -145,8 +175,15 @@ function buildComparisonMeta(file1, file2, changes, excelMeta) {
   }
 
   bullets.push(
-    `${mutualLines.toLocaleString()} lines match word-for-word in both files. Very long matching sections are shortened in the list so you can scroll to real differences faster.`
+    wordDiff
+      ? `${mutualLines.toLocaleString()} segments match after normalizing whitespace. Long identical stretches are shortened so you can jump to real differences.`
+      : `${mutualLines.toLocaleString()} lines match word-for-word in both files. Very long matching sections are shortened in the list so you can scroll to real differences faster.`
   );
+  if (wordDiff) {
+    bullets.push(
+      'Tip: part/BOM-style docs often differ only in line breaks—this mode fixes that. For a dedicated “which part numbers differ” report, use Gemini compare.'
+    );
+  }
 
   if (excelMeta) {
     const bits = [];
@@ -340,12 +377,12 @@ async function runCompare(file1, file2) {
     const txt1 = await extractText(file1);
     const txt2 = await extractText(file2);
 
-    const cleanTxt1 = txt1.replace(/\r\n/g, '\n').trim();
-    const cleanTxt2 = txt2.replace(/\r\n/g, '\n').trim();
+    const word1 = normalizeTextForWordDiff(txt1);
+    const word2 = normalizeTextForWordDiff(txt2);
 
-    const rawChanges = diff.diffLines(cleanTxt1, cleanTxt2);
+    const rawChanges = diff.diffWords(word1, word2);
     const changes = collapseUnchangedChunks(rawChanges);
-    const meta = buildComparisonMeta(file1, file2, rawChanges, excelMeta);
+    const meta = buildComparisonMeta(file1, file2, rawChanges, excelMeta, { wordDiff: true });
 
     return { diff: changes, meta };
   } catch (err) {
@@ -358,5 +395,8 @@ async function runCompare(file1, file2) {
 
 module.exports = {
   runCompare,
+  extractText,
+  docKindFromExt,
+  normalizeTextForWordDiff,
   LARGE_FILE_THRESHOLD
 };
