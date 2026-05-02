@@ -17,83 +17,72 @@
       </div>
       <p class="tagline">Document Comparison Tool</p>
       <p class="help-banner">
-        <strong>One workspace:</strong> add any files or a folder at the top, then use <strong>AI</strong> with your prompt. All file types are accepted. The app never overwrites your files.
+        Add any files or a folder, write your question, and press <strong>Search</strong>. The AI reads the extracted text and answers. Your files are never modified.
       </p>
     </div>
 
     <div class="main">
       <div class="card workspace-card">
-        <input type="file" id="analyzeFilesInput" class="file-input-hidden" multiple aria-label="Add files">
-        <input type="file" id="analyzeFolderInput" class="file-input-hidden" webkitdirectory multiple aria-label="Add folder">
-        <h2 class="workspace-heading">Your documents</h2>
-        <p class="workspace-lead">Start here: add <strong>any file types</strong> or a whole folder. Then scroll down for AI or side-by-side compare.</p>
 
-        <label class="file-label"><img src="/symbols/add.svg" alt="" width="16" height="16" style="margin-right: 4px;"> Add files</label>
-        <label class="file-input-zone ai-upload-single" id="analyzeUploadZone" for="analyzeFilesInput" aria-label="Add files or drag and drop">
+        <!-- Hidden inputs — triggered by JS only -->
+        <input type="file" id="analyzeFilesInput" class="file-input-hidden" multiple accept="*/*" aria-label="Add files">
+        <input type="file" id="analyzeFolderInput" class="file-input-hidden" webkitdirectory multiple aria-label="Add folder">
+
+        <h2 class="workspace-heading">Your documents</h2>
+        <p class="workspace-lead">Add <strong>any file types</strong> or a whole folder. Then describe what you need below.</p>
+
+        <!-- Drop zone — plain div, wired by JS -->
+        <div class="file-input-zone ai-upload-single" id="analyzeUploadZone" tabindex="0" role="button" aria-label="Click to add files">
           <img class="upload-icon" src="/symbols/folder.svg" alt="" width="36" height="36">
-          <div class="upload-text">Add documents</div>
-          <div class="upload-subtext">Click or drag files here · any file type · or use Add folder</div>
-          <div class="ai-zone-actions">
-            <button type="button" class="btn-zone-link" id="analyzePickFolder" data-analyze-action="folder">Add folder</button>
+          <div class="upload-text">Click here to add files</div>
+          <div class="upload-subtext">Any file type accepted · drag &amp; drop works too</div>
+          <div class="ai-zone-actions" id="analyzeZoneActions">
+            <button type="button" class="btn-zone-link" id="analyzePickFiles">Add files</button>
             <span class="ai-zone-sep" aria-hidden="true">·</span>
-            <button type="button" class="btn-text btn-zone-clear" id="analyzeClearFiles" data-analyze-action="clear">Clear list</button>
+            <button type="button" class="btn-zone-link" id="analyzePickFolder">Add folder</button>
+            <span class="ai-zone-sep" aria-hidden="true">·</span>
+            <button type="button" class="btn-zone-link" id="analyzeClearFiles">Clear list</button>
           </div>
-        </label>
+        </div>
         <p class="analyze-file-summary" id="analyzeFileSummary">No files in your list yet.</p>
 
         <h3 class="workspace-subheading">AI analysis</h3>
         <label class="file-label" for="analyzePrompt">Your question or instructions</label>
-        <textarea id="analyzePrompt" class="prompt-textarea" rows="4" placeholder="Describe how you want the AI to read your files."></textarea>
+        <textarea id="analyzePrompt" class="prompt-textarea" rows="4" placeholder="Describe how you want the AI to read your files — e.g. list part numbers that differ, summarize changes, etc. Press Enter or Cmd/Ctrl+Enter to search."></textarea>
+
         <div class="action-section analyze-actions">
           <button type="button" class="btn btn-primary" id="analyzeBtn">
             <img class="btn-icon" src="/symbols/attach.svg" alt="" width="20" height="20">
             <span class="btn-text">Search</span>
           </button>
           <div id="analyzeStatus" class="inline-status"></div>
-        </div>
-        <p class="section-note">Requires <code>GEMINI_API_KEY</code> on the server. Large uploads may be truncated.</p>
-
-        <hr class="workspace-divider" />
-
-        <div id="status"></div>
-        <div id="progress" style="display: none;">
-          <div class="progress-bar">
-            <div class="progress-fill"></div>
+          <div id="status"></div>
+          <div id="progress" style="display: none;">
+            <div class="progress-bar"><div class="progress-fill"></div></div>
+            <div class="progress-text">Processing files...</div>
           </div>
-          <div class="progress-text">Processing files...</div>
         </div>
+
+        <p class="section-note">Requires <code>GEMINI_API_KEY</code> on the server. Large uploads may be truncated.</p>
       </div>
 
       <div class="card results-section" id="resultsCard">
         <div class="results-header">
-          <div class="results-title" id="resultsTitle"><img src="/symbols/check.svg" alt="" width="24" height="24" style="margin-right: 8px;" id="resultsTitleIcon"> <span id="resultsTitleText">What we found</span></div>
-          <div class="results-stats">
-            <div class="stat">
-              <div class="stat-value" id="changeCount">0</div>
-              <div class="stat-label">Lines that don’t match (total)</div>
-            </div>
-            <div class="stat">
-              <div class="stat-value" id="addedCount">0</div>
-              <div class="stat-label" id="statLabelSecond">Only in second document</div>
-            </div>
-            <div class="stat">
-              <div class="stat-value" id="removedCount">0</div>
-              <div class="stat-label" id="statLabelFirst">Only in first document</div>
-            </div>
-            <div class="stat">
-              <div class="stat-value" id="mutualCount">—</div>
-              <div class="stat-label">Lines that match in both</div>
-            </div>
-            <div class="stat">
-              <div class="stat-value" id="similarityStat">—</div>
-              <div class="stat-label">Roughly how much is the same</div>
-            </div>
+          <div class="results-title" id="resultsTitle">
+            <img src="/symbols/check.svg" alt="" width="24" height="24" style="margin-right: 8px;">
+            <span id="resultsTitleText">Response</span>
+          </div>
+          <div class="results-stats" id="resultStats" style="display:none;">
+            <div class="stat"><div class="stat-value" id="changeCount">0</div><div class="stat-label">Lines that don't match</div></div>
+            <div class="stat"><div class="stat-value" id="addedCount">0</div><div class="stat-label" id="statLabelSecond">Only in second</div></div>
+            <div class="stat"><div class="stat-value" id="removedCount">0</div><div class="stat-label" id="statLabelFirst">Only in first</div></div>
+            <div class="stat"><div class="stat-value" id="mutualCount">—</div><div class="stat-label">Lines that match</div></div>
+            <div class="stat"><div class="stat-value" id="similarityStat">—</div><div class="stat-label">How much is the same</div></div>
           </div>
         </div>
 
         <div id="summaryPanel" class="summary-panel" hidden></div>
-
-        <p class="diff-legend-intro" id="diffLegendIntro">Colors below (after you compare):</p>
+        <p class="diff-legend-intro" id="diffLegendIntro" style="display:none;"></p>
         <div class="diff-legend" id="diffLegend"></div>
 
         <div class="diff-viewer">
@@ -103,7 +92,7 @@
         <div class="toolbar">
           <button type="button" class="btn btn-secondary" id="downloadBtn"><img src="/symbols/download.svg" alt="" width="16" height="16" style="margin-right: 6px;"> Download Report</button>
           <button type="button" class="btn btn-secondary" id="copyBtn"><img src="/symbols/copy.svg" alt="" width="16" height="16" style="margin-right: 6px;"> Copy Results</button>
-          <button type="button" class="btn btn-secondary" id="clearBtn"><img src="/symbols/refresh.svg" alt="" width="16" height="16" style="margin-right: 6px;"> New Comparison</button>
+          <button type="button" class="btn btn-secondary" id="clearBtn"><img src="/symbols/refresh.svg" alt="" width="16" height="16" style="margin-right: 6px;"> Clear</button>
         </div>
       </div>
     </div>
