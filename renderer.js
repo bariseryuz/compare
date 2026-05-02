@@ -141,6 +141,39 @@ function renderDiffSections(diffData, file1Path, file2Path, resultArea) {
   );
 }
 
+function renderAiExchange(resultArea, { promptText, responseText, contextLabel }) {
+  resultArea.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'ai-exchange';
+  const p = String(promptText || '').trim();
+  if (p) {
+    const h = document.createElement('h3');
+    h.className = 'ai-exchange-heading';
+    h.textContent = 'Your request';
+    const pre = document.createElement('pre');
+    pre.className = 'ai-prompt-display';
+    pre.textContent = p;
+    wrap.appendChild(h);
+    wrap.appendChild(pre);
+  }
+  const c = String(contextLabel || '').trim();
+  if (c) {
+    const ctx = document.createElement('p');
+    ctx.className = 'ai-exchange-context';
+    ctx.textContent = c;
+    wrap.appendChild(ctx);
+  }
+  const h2 = document.createElement('h3');
+  h2.className = 'ai-exchange-heading';
+  h2.textContent = 'Response';
+  const out = document.createElement('pre');
+  out.className = 'ai-output';
+  out.textContent = responseText || '';
+  wrap.appendChild(h2);
+  wrap.appendChild(out);
+  resultArea.appendChild(wrap);
+}
+
 runWhenDomReady(initializeApp);
 
 function initializeApp() {
@@ -167,10 +200,54 @@ function initializeApp() {
     const statLabelSecond = document.getElementById('statLabelSecond');
     const statLabelFirst = document.getElementById('statLabelFirst');
     const diffLegend = document.getElementById('diffLegend');
+    const resultsTitleText = document.getElementById('resultsTitleText');
+    const analyzeDropZone = document.getElementById('analyzeDropZone');
+    const analyzeAddFolderBtn = document.getElementById('analyzeAddFolderBtn');
+    const analyzeClearListBtn = document.getElementById('analyzeClearListBtn');
+    const analyzeFileListSummary = document.getElementById('analyzeFileListSummary');
+    const analyzePrompt = document.getElementById('analyzePrompt');
+    const analyzeRunBtn = document.getElementById('analyzeRunBtn');
+    const analyzeStatus = document.getElementById('analyzeStatus');
 
+    const ANALYZE_MAX_FILES = 45;
     let file1Path = null;
     let file2Path = null;
     let lastComparisonMeta = null;
+    /** @type {{ path: string, originalName: string }[]} */
+    let analyzeEntries = [];
+
+    function updateAnalyzeSummaryText() {
+      if (!analyzeFileListSummary) return;
+      if (!analyzeEntries.length) {
+        analyzeFileListSummary.textContent = 'No files in your list yet.';
+        if (analyzeDropZone) analyzeDropZone.classList.remove('active');
+        return;
+      }
+      const preview = analyzeEntries
+        .slice(0, 8)
+        .map((e) => e.originalName)
+        .join(', ');
+      analyzeFileListSummary.textContent = `${analyzeEntries.length} file(s): ${preview}${
+        analyzeEntries.length > 8 ? ' …' : ''
+      }`;
+      if (analyzeDropZone) analyzeDropZone.classList.add('active');
+    }
+
+    function mergeAnalyzeEntries(newItems) {
+      if (!newItems || !newItems.length) return;
+      const seen = new Set(analyzeEntries.map((e) => e.path));
+      for (const item of newItems) {
+        if (!item || typeof item.path !== 'string') continue;
+        if (seen.has(item.path)) continue;
+        seen.add(item.path);
+        analyzeEntries.push({
+          path: item.path,
+          originalName: item.originalName || item.path.split(/[\\/]/).pop() || 'file'
+        });
+        if (analyzeEntries.length >= ANALYZE_MAX_FILES) break;
+      }
+      updateAnalyzeSummaryText();
+    }
 
     // 2. Helper: Display File Metadata
     async function displayFileInfo(filepath, spanElement, zoneElement) {
@@ -237,8 +314,182 @@ function initializeApp() {
       });
     }
 
-    setupDragDrop(file1Zone, file1Span, (p) => { file1Path = p; });
-    setupDragDrop(file2Zone, file2Span, (p) => { file2Path = p; });
+    if (file1Zone && file1Span) {
+      setupDragDrop(file1Zone, file1Span, (p) => { file1Path = p; });
+    }
+    if (file2Zone && file2Span) {
+      setupDragDrop(file2Zone, file2Span, (p) => { file2Path = p; });
+    }
+
+    // 3b. AI analysis: single drop zone (click/drag), folder, prompt, run
+    async function pickMultipleFilesForAnalyze() {
+      try {
+        const picked = await window.electronAPI.selectMultipleFiles();
+        mergeAnalyzeEntries(picked || []);
+        if (analyzeEntries.length >= ANALYZE_MAX_FILES && analyzeStatus) {
+          analyzeStatus.textContent = `Using first ${ANALYZE_MAX_FILES} files.`;
+        }
+      } catch (err) {
+        console.error(err);
+        if (analyzeStatus) analyzeStatus.textContent = '❌ Could not add files.';
+      }
+    }
+
+    if (analyzeDropZone && window.electronAPI.selectMultipleFiles) {
+      analyzeDropZone.addEventListener('click', async (e) => {
+        if (e.target.closest('[data-analyze-action]')) return;
+        await pickMultipleFilesForAnalyze();
+      });
+      analyzeDropZone.addEventListener('keydown', async (e) => {
+        if (e.target !== analyzeDropZone) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          await pickMultipleFilesForAnalyze();
+        }
+      });
+      analyzeDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        analyzeDropZone.classList.add('dragover');
+      });
+      analyzeDropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        analyzeDropZone.classList.remove('dragover');
+      });
+      analyzeDropZone.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        analyzeDropZone.classList.remove('dragover');
+        const dt = e.dataTransfer && e.dataTransfer.files;
+        if (!dt || !dt.length) return;
+        const batch = [];
+        for (let i = 0; i < dt.length; i++) {
+          const file = dt[i];
+          if (file.path) {
+            batch.push({
+              path: file.path,
+              originalName: file.name || file.path.split(/[\\/]/).pop()
+            });
+          }
+        }
+        mergeAnalyzeEntries(batch);
+        if (analyzeEntries.length >= ANALYZE_MAX_FILES && analyzeStatus) {
+          analyzeStatus.textContent = `Using first ${ANALYZE_MAX_FILES} files.`;
+        }
+      });
+    }
+    if (analyzeAddFolderBtn && window.electronAPI.selectFolderFiles) {
+      analyzeAddFolderBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          const picked = await window.electronAPI.selectFolderFiles();
+          mergeAnalyzeEntries(picked || []);
+          if (analyzeEntries.length >= ANALYZE_MAX_FILES && analyzeStatus) {
+            analyzeStatus.textContent = `Using first ${ANALYZE_MAX_FILES} files from folders.`;
+          }
+        } catch (err) {
+          console.error(err);
+          if (analyzeStatus) analyzeStatus.textContent = '❌ Could not read folder.';
+        }
+      });
+    }
+    if (analyzeClearListBtn) {
+      analyzeClearListBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        analyzeEntries = [];
+        updateAnalyzeSummaryText();
+        if (analyzeStatus) analyzeStatus.textContent = '';
+      });
+    }
+    if (analyzeRunBtn && window.electronAPI.analyzeWithPrompt) {
+      analyzeRunBtn.addEventListener('click', async () => {
+        const promptText = (analyzePrompt && analyzePrompt.value) || '';
+        const trimmed = promptText.trim();
+        if (!trimmed) {
+          if (analyzeStatus) analyzeStatus.textContent = '⚠️ Enter your question or instructions.';
+          return;
+        }
+        if (!analyzeEntries.length) {
+          if (analyzeStatus) analyzeStatus.textContent = '⚠️ Add files or a folder first.';
+          return;
+        }
+
+        analyzeRunBtn.disabled = true;
+        if (analyzeStatus) analyzeStatus.textContent = '';
+        statusDiv.textContent = '⏳ Running AI analysis...';
+        progressDiv.style.display = 'block';
+        resultsCard.classList.remove('active');
+
+        try {
+          const response = await window.electronAPI.analyzeWithPrompt({
+            entries: analyzeEntries,
+            prompt: trimmed
+          });
+          let diffData;
+          lastComparisonMeta = null;
+          if (Array.isArray(response)) {
+            diffData = response;
+          } else {
+            diffData = response.diff;
+            lastComparisonMeta = response.meta;
+          }
+
+          resultsCard.classList.add('results-section--analyze');
+          if (resultsTitleText) resultsTitleText.textContent = 'AI response';
+          if (summaryPanel) {
+            summaryPanel.hidden = true;
+            summaryPanel.innerHTML = '';
+          }
+          if (statLabelSecond) statLabelSecond.textContent = '—';
+          if (statLabelFirst) statLabelFirst.textContent = '—';
+          if (diffLegend) diffLegend.innerHTML = '';
+          if (similarityStat) similarityStat.textContent = '—';
+          if (mutualCount) mutualCount.textContent = '—';
+          changeCount.textContent = '—';
+          addedCount.textContent = '—';
+          removedCount.textContent = '—';
+
+          const body =
+            Array.isArray(diffData) && diffData[0] && typeof diffData[0].value === 'string'
+              ? diffData[0].value
+              : '';
+          renderAiExchange(resultArea, {
+            promptText: trimmed,
+            responseText: body,
+            contextLabel: `${analyzeEntries.length} file(s) attached`
+          });
+
+          const hasErr = typeof body === 'string' && body.startsWith('Error:');
+          if (analyzeStatus) {
+            analyzeStatus.textContent = hasErr ? '❌ See message below.' : '✅ Done.';
+          }
+          statusDiv.textContent = hasErr ? '❌ AI analysis failed.' : '✅ AI analysis complete.';
+          resultsCard.classList.add('active');
+          setTimeout(() => {
+            resultsCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 200);
+        } catch (err) {
+          resultArea.innerHTML = '';
+          const span = document.createElement('span');
+          span.className = 'diff-error';
+          span.textContent = `Error: ${err.message}`;
+          resultArea.appendChild(span);
+          if (analyzeStatus) analyzeStatus.textContent = '❌ Request failed.';
+          statusDiv.textContent = '❌ Error during AI analysis';
+          resultsCard.classList.add('active');
+        } finally {
+          analyzeRunBtn.disabled = false;
+          progressDiv.style.display = 'none';
+        }
+      });
+      if (analyzePrompt) {
+        analyzePrompt.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          if (e.metaKey || e.ctrlKey || !e.shiftKey) {
+            e.preventDefault();
+            analyzeRunBtn.click();
+          }
+        });
+      }
+    }
 
     // 4. Action: Compare Documents
     if (compare) {
@@ -263,6 +514,49 @@ function initializeApp() {
             diffData = response.diff;
             lastComparisonMeta = response.meta;
           }
+
+          const name1 = file1Path.split(/[\\/]/).pop() || 'Document 1';
+          const name2 = file2Path.split(/[\\/]/).pop() || 'Document 2';
+
+          if (lastComparisonMeta && lastComparisonMeta.aiOnly) {
+            resultsCard.classList.add('results-section--analyze');
+            if (resultsTitleText) resultsTitleText.textContent = 'AI response';
+            if (summaryPanel) {
+              summaryPanel.hidden = true;
+              summaryPanel.innerHTML = '';
+            }
+            if (statLabelSecond) statLabelSecond.textContent = '—';
+            if (statLabelFirst) statLabelFirst.textContent = '—';
+            if (diffLegend) diffLegend.innerHTML = '';
+            if (similarityStat) similarityStat.textContent = '—';
+            if (mutualCount) mutualCount.textContent = '—';
+            changeCount.textContent = '—';
+            addedCount.textContent = '—';
+            removedCount.textContent = '—';
+
+            const body =
+              Array.isArray(diffData) && diffData[0] && typeof diffData[0].value === 'string'
+                ? diffData[0].value
+                : '';
+            renderAiExchange(resultArea, {
+              promptText: '',
+              responseText: body,
+              contextLabel: `Comparing: ${shortFileName(name1)} · ${shortFileName(name2)}`
+            });
+
+            const hasErr = typeof body === 'string' && body.startsWith('Error:');
+            statusDiv.textContent = hasErr
+              ? '❌ Could not complete — see below.'
+              : '✅ Done.';
+            resultsCard.classList.add('active');
+            setTimeout(() => {
+              resultsCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+            return;
+          }
+
+          resultsCard.classList.remove('results-section--analyze');
+          if (resultsTitleText) resultsTitleText.textContent = 'What we found';
 
           if (summaryPanel) {
             if (lastComparisonMeta) {
@@ -321,7 +615,7 @@ function initializeApp() {
           });
 
           renderDiffSections(diffData, file1Path, file2Path, resultArea);
-          
+
           changeCount.textContent = added + removed;
           addedCount.textContent = added;
           removedCount.textContent = removed;
@@ -352,13 +646,54 @@ function initializeApp() {
     if (downloadBtn) {
       downloadBtn.addEventListener('click', () => {
         try {
+          const exchange = resultArea.querySelector('.ai-exchange');
+          const outPre = resultArea.querySelector('.ai-output');
+          if (exchange && outPre && outPre.textContent.trim()) {
+            const reqPre = resultArea.querySelector('.ai-prompt-display');
+            const ctxEl = resultArea.querySelector('.ai-exchange-context');
+            let report = `AI REPORT\n`;
+            report += `================================================\n`;
+            report += `Generated: ${new Date().toLocaleString()}\n`;
+            report += `================================================\n\n`;
+            if (reqPre && reqPre.textContent.trim()) {
+              report += `YOUR REQUEST\n`;
+              report += `------------------------------------------------\n`;
+              report += `${reqPre.textContent}\n\n`;
+            }
+            if (ctxEl && ctxEl.textContent.trim()) {
+              report += `${ctxEl.textContent}\n\n`;
+            }
+            report += `RESPONSE\n`;
+            report += `------------------------------------------------\n`;
+            report += `${outPre.textContent}\n`;
+            if (lastComparisonMeta && lastComparisonMeta.bullets && lastComparisonMeta.bullets.length) {
+              report += `\nNotes:\n`;
+              lastComparisonMeta.bullets.forEach((b) => {
+                report += `• ${b}\n`;
+              });
+            }
+            const safeName = (name) =>
+              String(name || 'file').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0, 120);
+            const blob = new Blob([report], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            const fn1 = file1Path ? file1Path.split(/[\\/]/).pop() : '';
+            const fn2 = file2Path ? file2Path.split(/[\\/]/).pop() : '';
+            link.download =
+              fn1 && fn2 ? `AI_Report_${safeName(fn1)}_vs_${safeName(fn2)}.txt` : `AI_Report.txt`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            statusDiv.textContent = '📥 Report saved!';
+            return;
+          }
+
           if (!file1Path || !file2Path) {
             statusDiv.textContent = '⚠️ Run a comparison with two files before downloading.';
             return;
           }
           const filename1 = file1Path.split(/[\\/]/).pop();
           const filename2 = file2Path.split(/[\\/]/).pop();
-          
+
           // Constructing a professional plain-text report
           let report = `DOCUMENT COMPARISON AUDIT REPORT\n`;
           report += `================================================\n`;
@@ -483,12 +818,16 @@ function initializeApp() {
       clearBtn.addEventListener('click', () => {
         file1Path = null;
         file2Path = null;
-        file1Span.style.display = 'none';
-        file2Span.style.display = 'none';
-        file1Zone.classList.remove('active');
-        file2Zone.classList.remove('active');
+        if (file1Span) file1Span.style.display = 'none';
+        if (file2Span) file2Span.style.display = 'none';
+        if (file1Zone) file1Zone.classList.remove('active');
+        if (file2Zone) file2Zone.classList.remove('active');
         resultArea.innerHTML = '';
         lastComparisonMeta = null;
+        analyzeEntries = [];
+        updateAnalyzeSummaryText();
+        if (analyzePrompt) analyzePrompt.value = '';
+        if (analyzeStatus) analyzeStatus.textContent = '';
         if (summaryPanel) {
           summaryPanel.hidden = true;
           summaryPanel.innerHTML = '';
@@ -500,6 +839,8 @@ function initializeApp() {
         if (diffLegend) diffLegend.innerHTML = '';
         statusDiv.textContent = '';
         resultsCard.classList.remove('active');
+        resultsCard.classList.remove('results-section--analyze');
+        if (resultsTitleText) resultsTitleText.textContent = 'What we found';
         changeCount.textContent = '0';
         addedCount.textContent = '0';
         removedCount.textContent = '0';

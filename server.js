@@ -10,6 +10,7 @@ const os = require('os');
 const path = require('path');
 const { runCompare } = require('./compare-core');
 const { runCompareGemini } = require('./generativecomp');
+const { runCustomAnalysis, MAX_FILES } = require('./analyze-ai');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -27,10 +28,43 @@ const upload = multer({
   limits: { fileSize: 52 * 1024 * 1024, files: 2 }
 });
 
+const uploadAnalyze = multer({
+  dest: os.tmpdir(),
+  limits: { fileSize: 52 * 1024 * 1024, files: MAX_FILES }
+});
+
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'doccompare-api' });
+});
+
+/** Multipart: field `prompt` (text) + repeated field `documents` (files). Optional folder upload from browser. */
+app.post('/api/analyze', uploadAnalyze.array('documents', MAX_FILES), async (req, res) => {
+  const files = req.files || [];
+  const prompt = (req.body && req.body.prompt) || '';
+
+  if (!files.length) {
+    return res.status(400).json({ error: 'Upload at least one file in field "documents".' });
+  }
+
+  const staged = files.map((f) => ({
+    path: f.path,
+    originalName: f.originalname || path.basename(f.path)
+  }));
+
+  try {
+    const result = await runCustomAnalysis(staged, prompt);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Analysis failed' });
+  } finally {
+    for (const f of files) {
+      try {
+        fs.unlinkSync(f.path);
+      } catch {}
+    }
+  }
 });
 
 app.post('/api/compare', upload.fields([{ name: 'file1', maxCount: 1 }, { name: 'file2', maxCount: 1 }]), async (req, res) => {

@@ -1,7 +1,8 @@
 /**
- * DocCompare web UI — same layout/CSS as Electron; uses POST /api/compare.
+ * DocCompare web UI — POST /api/compare (two files) and POST /api/analyze (prompt + many files).
  */
 const LARGE_BYTES = 50 * 1024 * 1024;
+const MAX_ANALYZE_FILES = 45;
 const DEFAULT_LABEL_SECOND = 'Only in second document';
 const DEFAULT_LABEL_FIRST = 'Only in first document';
 
@@ -187,6 +188,40 @@ function safeName(name) {
   return String(name || 'file').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0, 120);
 }
 
+/** Single-column UI: optional prompt, optional context line, then AI response (no diff sections). */
+function renderAiExchange(resultArea, { promptText, responseText, contextLabel }) {
+  resultArea.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'ai-exchange';
+  const p = String(promptText || '').trim();
+  if (p) {
+    const h = document.createElement('h3');
+    h.className = 'ai-exchange-heading';
+    h.textContent = 'Your request';
+    const pre = document.createElement('pre');
+    pre.className = 'ai-prompt-display';
+    pre.textContent = p;
+    wrap.appendChild(h);
+    wrap.appendChild(pre);
+  }
+  const c = String(contextLabel || '').trim();
+  if (c) {
+    const ctx = document.createElement('p');
+    ctx.className = 'ai-exchange-context';
+    ctx.textContent = c;
+    wrap.appendChild(ctx);
+  }
+  const h2 = document.createElement('h3');
+  h2.className = 'ai-exchange-heading';
+  h2.textContent = 'Response';
+  const out = document.createElement('pre');
+  out.className = 'ai-output';
+  out.textContent = responseText || '';
+  wrap.appendChild(h2);
+  wrap.appendChild(out);
+  resultArea.appendChild(wrap);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const file1Input = document.getElementById('file1Input');
   const file2Input = document.getElementById('file2Input');
@@ -211,11 +246,216 @@ document.addEventListener('DOMContentLoaded', () => {
   const statLabelSecond = document.getElementById('statLabelSecond');
   const statLabelFirst = document.getElementById('statLabelFirst');
   const diffLegend = document.getElementById('diffLegend');
+  const resultsTitleText = document.getElementById('resultsTitleText');
+
+  const analyzePrompt = document.getElementById('analyzePrompt');
+  const analyzeFilesInput = document.getElementById('analyzeFilesInput');
+  const analyzeFolderInput = document.getElementById('analyzeFolderInput');
+  const analyzeUploadZone = document.getElementById('analyzeUploadZone');
+  const analyzePickFolder = document.getElementById('analyzePickFolder');
+  const analyzeClearFiles = document.getElementById('analyzeClearFiles');
+  const analyzeFileSummary = document.getElementById('analyzeFileSummary');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const analyzeStatus = document.getElementById('analyzeStatus');
 
   let lastMeta = null;
+  let lastMode = 'compare';
+  let lastAnalyzePrompt = '';
+  let analyzeFileList = [];
+
+  function mergeAnalyzeFiles(fileList) {
+    for (const f of Array.from(fileList || [])) {
+      analyzeFileList.push(f);
+    }
+    if (analyzeFileList.length > MAX_ANALYZE_FILES) {
+      analyzeFileList = analyzeFileList.slice(0, MAX_ANALYZE_FILES);
+      if (analyzeStatus) analyzeStatus.textContent = `⚠️ Using first ${MAX_ANALYZE_FILES} files only.`;
+    }
+    updateAnalyzeSummary();
+  }
+
+  function updateAnalyzeSummary() {
+    if (!analyzeFileSummary) return;
+    if (!analyzeFileList.length) {
+      analyzeFileSummary.textContent = 'No files in your list yet.';
+      if (analyzeUploadZone) analyzeUploadZone.classList.remove('active');
+      return;
+    }
+    const names = analyzeFileList.map((f) => f.webkitRelativePath || f.name);
+    const preview = names.slice(0, 6).join(', ');
+    analyzeFileSummary.textContent = `${analyzeFileList.length} file(s): ${preview}${names.length > 6 ? ' …' : ''}`;
+    if (analyzeUploadZone) analyzeUploadZone.classList.add('active');
+  }
+
+  function setResultsSectionMode(mode) {
+    lastMode = mode;
+    if (mode === 'analyze') {
+      resultsCard.classList.add('results-section--analyze');
+      if (resultsTitleText) resultsTitleText.textContent = 'AI response';
+    } else {
+      resultsCard.classList.remove('results-section--analyze');
+      if (resultsTitleText) resultsTitleText.textContent = 'What we found';
+    }
+  }
+
 
   setupZone(file1Zone, file1Input, file1Span);
   setupZone(file2Zone, file2Input, file2Span);
+
+  if (analyzeUploadZone && analyzeFilesInput) {
+    analyzeUploadZone.addEventListener('click', (e) => {
+      if (e.target.closest('[data-analyze-action]')) return;
+      analyzeFilesInput.click();
+    });
+    analyzeUploadZone.addEventListener('keydown', (e) => {
+      if (e.target !== analyzeUploadZone) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        analyzeFilesInput.click();
+      }
+    });
+    analyzeUploadZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      analyzeUploadZone.classList.add('dragover');
+    });
+    analyzeUploadZone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      analyzeUploadZone.classList.remove('dragover');
+    });
+    analyzeUploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      analyzeUploadZone.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files.length) {
+        mergeAnalyzeFiles(e.dataTransfer.files);
+      }
+    });
+  }
+  if (analyzePickFolder && analyzeFolderInput) {
+    analyzePickFolder.addEventListener('click', (e) => {
+      e.stopPropagation();
+      analyzeFolderInput.click();
+    });
+  }
+  if (analyzeFilesInput) {
+    analyzeFilesInput.addEventListener('change', (e) => {
+      mergeAnalyzeFiles(e.target.files);
+      e.target.value = '';
+    });
+  }
+  if (analyzeFolderInput) {
+    analyzeFolderInput.addEventListener('change', (e) => {
+      mergeAnalyzeFiles(e.target.files);
+      e.target.value = '';
+    });
+  }
+  if (analyzeClearFiles) {
+    analyzeClearFiles.addEventListener('click', (e) => {
+      e.stopPropagation();
+      analyzeFileList = [];
+      updateAnalyzeSummary();
+      if (analyzeStatus) analyzeStatus.textContent = '';
+    });
+  }
+
+  if (analyzeBtn) {
+    analyzeBtn.addEventListener('click', async () => {
+      const promptText = (analyzePrompt && analyzePrompt.value) || '';
+      if (!promptText.trim()) {
+        if (analyzeStatus) analyzeStatus.textContent = '⚠️ Enter your question or instructions.';
+        return;
+      }
+      if (!analyzeFileList.length) {
+        if (analyzeStatus) analyzeStatus.textContent = '⚠️ Add at least one file or folder.';
+        return;
+      }
+
+      analyzeBtn.disabled = true;
+      if (analyzeStatus) analyzeStatus.textContent = '';
+      statusDiv.textContent = '';
+      progressDiv.style.display = 'block';
+      resultsCard.classList.remove('active');
+      lastMeta = null;
+      lastAnalyzePrompt = promptText.trim();
+
+      try {
+        const fd = new FormData();
+        fd.append('prompt', lastAnalyzePrompt);
+        for (const f of analyzeFileList) {
+          const fname = f.webkitRelativePath || f.name;
+          fd.append('documents', f, fname);
+        }
+
+        const r = await fetch('/api/analyze', { method: 'POST', body: fd });
+        const response = await r.json();
+        if (!r.ok) {
+          throw new Error(response.error || r.statusText || 'Request failed');
+        }
+
+        const diffData = response.diff;
+        lastMeta = response.meta || null;
+
+        setResultsSectionMode('analyze');
+
+        if (summaryPanel) {
+          summaryPanel.hidden = true;
+          summaryPanel.innerHTML = '';
+        }
+
+        if (statLabelSecond) statLabelSecond.textContent = '—';
+        if (statLabelFirst) statLabelFirst.textContent = '—';
+        if (diffLegend) diffLegend.innerHTML = '';
+        if (similarityStat) similarityStat.textContent = '—';
+        if (mutualCount) mutualCount.textContent = '—';
+        changeCount.textContent = '—';
+        addedCount.textContent = '—';
+        removedCount.textContent = '—';
+
+        const body =
+          Array.isArray(diffData) && diffData[0] && typeof diffData[0].value === 'string'
+            ? diffData[0].value
+            : '';
+        renderAiExchange(resultArea, {
+          promptText: lastAnalyzePrompt,
+          responseText: body,
+          contextLabel: `${analyzeFileList.length} file(s) attached`
+        });
+
+        const hasError = body.startsWith('Error:');
+        if (analyzeStatus) {
+          analyzeStatus.textContent = hasError ? '❌ See message below.' : '✅ Done.';
+        }
+        statusDiv.textContent = hasError ? '❌ Analysis failed.' : '✅ Analysis complete!';
+        resultsCard.classList.add('active');
+        setTimeout(() => {
+          resultsCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 200);
+      } catch (err) {
+        setResultsSectionMode('analyze');
+        resultArea.innerHTML = '';
+        const span = document.createElement('span');
+        span.className = 'diff-error';
+        span.textContent = `Error: ${err.message}`;
+        resultArea.appendChild(span);
+        if (analyzeStatus) analyzeStatus.textContent = '❌ Request failed.';
+        statusDiv.textContent = '❌ Error during analysis';
+        summaryPanel.hidden = true;
+        summaryPanel.innerHTML = '';
+        resultsCard.classList.add('active');
+      } finally {
+        analyzeBtn.disabled = false;
+        progressDiv.style.display = 'none';
+      }
+    });
+    if (analyzePrompt) {
+      analyzePrompt.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        if (e.metaKey || e.ctrlKey || !e.shiftKey) {
+          e.preventDefault();
+          analyzeBtn.click();
+        }
+      });
+    }
+  }
 
   compare.addEventListener('click', async () => {
     const a = file1Input.files[0];
@@ -230,6 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
     progressDiv.style.display = 'block';
     resultsCard.classList.remove('active');
     lastMeta = null;
+    setResultsSectionMode('compare');
 
     try {
       const fd = new FormData();
@@ -243,6 +484,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const diffData = response.diff;
       lastMeta = response.meta || null;
+
+      const name1 = a.name || 'Document 1';
+      const name2 = b.name || 'Document 2';
+
+      if (lastMeta && lastMeta.aiOnly) {
+        setResultsSectionMode('analyze');
+        if (summaryPanel) {
+          summaryPanel.hidden = true;
+          summaryPanel.innerHTML = '';
+        }
+        if (statLabelSecond) statLabelSecond.textContent = '—';
+        if (statLabelFirst) statLabelFirst.textContent = '—';
+        if (diffLegend) diffLegend.innerHTML = '';
+        if (similarityStat) similarityStat.textContent = '—';
+        if (mutualCount) mutualCount.textContent = '—';
+        changeCount.textContent = '—';
+        addedCount.textContent = '—';
+        removedCount.textContent = '—';
+
+        const body =
+          Array.isArray(diffData) && diffData[0] && typeof diffData[0].value === 'string'
+            ? diffData[0].value
+            : '';
+        renderAiExchange(resultArea, {
+          promptText: '',
+          responseText: body,
+          contextLabel: `Comparing: ${shortFileName(name1)} · ${shortFileName(name2)}`
+        });
+
+        const hasError = typeof body === 'string' && body.startsWith('Error:');
+        statusDiv.textContent = hasError
+          ? '❌ Could not complete — see below.'
+          : '✅ Done.';
+        resultsCard.classList.add('active');
+        setTimeout(() => {
+          resultsCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 200);
+        return;
+      }
 
       if (summaryPanel) {
         if (lastMeta) {
@@ -293,8 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (part.removed) removed += n;
       });
 
-      const name1 = a.name || 'Document 1';
-      const name2 = b.name || 'Document 2';
       renderDiffSections(diffData, name1, name2, resultArea);
 
       changeCount.textContent = added + removed;
@@ -329,6 +607,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
   downloadBtn.addEventListener('click', () => {
     try {
+      const exchange = resultArea.querySelector('.ai-exchange');
+      const outPre = resultArea.querySelector('.ai-output');
+      if (exchange && outPre && outPre.textContent.trim()) {
+        const reqPre = resultArea.querySelector('.ai-prompt-display');
+        const ctxEl = resultArea.querySelector('.ai-exchange-context');
+        let report = `AI REPORT\n`;
+        report += `================================================\n`;
+        report += `Generated: ${new Date().toLocaleString()}\n`;
+        report += `================================================\n\n`;
+        if (reqPre && reqPre.textContent.trim()) {
+          report += `YOUR REQUEST\n`;
+          report += `------------------------------------------------\n`;
+          report += `${reqPre.textContent}\n\n`;
+        }
+        if (ctxEl && ctxEl.textContent.trim()) {
+          report += `${ctxEl.textContent}\n\n`;
+        }
+        report += `RESPONSE\n`;
+        report += `------------------------------------------------\n`;
+        report += `${outPre.textContent}\n`;
+        if (lastMeta && lastMeta.bullets && lastMeta.bullets.length) {
+          report += `\nNotes:\n`;
+          lastMeta.bullets.forEach((x) => {
+            report += `• ${x}\n`;
+          });
+        }
+        const blob = new Blob([report], { type: 'text/plain' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        const af = file1Input.files[0];
+        const bf = file2Input.files[0];
+        const dualName =
+          af && bf ? `AI_Report_${safeName(af.name)}_vs_${safeName(bf.name)}.txt` : '';
+        link.download =
+          lastMode === 'analyze'
+            ? `AI_Analysis_${new Date().toISOString().slice(0, 10)}.txt`
+            : dualName || `AI_Report_${new Date().toISOString().slice(0, 10)}.txt`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        statusDiv.textContent = '📥 Report saved!';
+        return;
+      }
+
       const a = file1Input.files[0];
       const b = file2Input.files[0];
       if (!a || !b) {
@@ -452,8 +773,14 @@ document.addEventListener('DOMContentLoaded', () => {
     file2Span.style.display = 'none';
     file1Zone.classList.remove('active');
     file2Zone.classList.remove('active');
+    analyzeFileList = [];
+    updateAnalyzeSummary();
+    if (analyzePrompt) analyzePrompt.value = '';
+    if (analyzeStatus) analyzeStatus.textContent = '';
+    lastAnalyzePrompt = '';
     resultArea.innerHTML = '';
     lastMeta = null;
+    setResultsSectionMode('compare');
     summaryPanel.hidden = true;
     summaryPanel.innerHTML = '';
     if (similarityStat) similarityStat.textContent = '—';

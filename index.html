@@ -507,6 +507,54 @@
     .legend-swatch.mutual { background: #334155; border: 1px solid #94a3b8; }
     .legend-swatch.skip { background: #1e293b; border: 1px dashed #64748b; }
 
+    .results-section.results-section--analyze .results-stats,
+    .results-section.results-section--analyze .diff-legend-intro,
+    .results-section.results-section--analyze #diffLegendIntro,
+    .results-section.results-section--analyze .diff-legend {
+      display: none;
+    }
+
+    .ai-exchange-heading {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      margin: 20px 0 10px;
+    }
+
+    .ai-exchange-heading:first-child {
+      margin-top: 0;
+    }
+
+    .ai-prompt-display {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 14px;
+      line-height: 1.55;
+      padding: 14px 16px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 12px;
+      font-family: inherit;
+      margin: 0 0 12px;
+      color: #e2e8f0;
+    }
+
+    .ai-exchange-context {
+      font-size: 14px;
+      color: #94a3b8;
+      margin: 0 0 8px;
+    }
+
+    .ai-output {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 14px;
+      line-height: 1.55;
+      color: #e2e8f0;
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
     .help-banner {
       font-size: 13px;
       color: var(--text-light);
@@ -672,6 +720,140 @@
         transform: translateY(0);
       }
     }
+
+    .workspace-card {
+      margin-bottom: 0;
+    }
+
+    .workspace-heading {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 8px;
+    }
+
+    .workspace-lead {
+      font-size: 14px;
+      color: var(--text-light);
+      line-height: 1.55;
+      margin-bottom: 20px;
+    }
+
+    .workspace-subheading {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin: 24px 0 10px;
+    }
+
+    .workspace-subheading:first-of-type {
+      margin-top: 8px;
+    }
+
+    .workspace-compare-hint {
+      font-size: 13px;
+      color: var(--text-light);
+      margin: 0 0 16px;
+      line-height: 1.45;
+    }
+
+    .workspace-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 28px 0 8px;
+    }
+
+    .analyze-summary {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.45;
+      word-break: break-word;
+      margin-bottom: 14px;
+    }
+
+    .prompt-textarea {
+      width: 100%;
+      max-width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      line-height: 1.5;
+      resize: vertical;
+      min-height: 100px;
+      margin-bottom: 12px;
+      box-sizing: border-box;
+    }
+
+    .prompt-textarea:focus {
+      outline: 2px solid rgba(79, 70, 229, 0.35);
+      border-color: var(--primary-dark);
+    }
+
+    .ai-analyze-actions {
+      border-top: none;
+      padding-top: 4px;
+      margin-bottom: 8px;
+    }
+
+    .inline-status {
+      margin-top: 10px;
+      font-size: 14px;
+      min-height: 1.25em;
+    }
+
+    .ai-env-note {
+      font-size: 12px;
+      color: var(--text-light);
+      margin-top: 8px;
+    }
+
+    .ai-env-note code {
+      font-size: 11px;
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .ai-upload-single {
+      width: 100%;
+      max-width: 100%;
+      margin-bottom: 12px;
+    }
+
+    .ai-upload-single .ai-zone-actions {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px 14px;
+      font-size: 13px;
+    }
+
+    .btn-zone-link {
+      background: none;
+      border: none;
+      color: var(--primary-dark);
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 4px 6px;
+      font-size: inherit;
+      font-family: inherit;
+    }
+
+    .btn-zone-link:hover {
+      color: var(--secondary);
+    }
+
+    .ai-zone-sep {
+      color: var(--text-light);
+      user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -683,39 +865,37 @@
       </div>
       <p class="tagline">Document Comparison Tool</p>
       <p class="help-banner">
-        Choose two documents. The app <strong>never saves over your files</strong>—it only shows what is different. After you compare, read the short summary in plain English first, then scroll the colors if you need detail.
+        <strong>One workspace:</strong> add any files or a folder at the top, then use <strong>AI</strong> (your prompt) and/or <strong>compare</strong> two files. All file types are accepted. The app <strong>never overwrites your files</strong>.
       </p>
     </div>
 
     <div class="main">
-      <div class="card">
-        <div class="files-grid">
-          <div class="file-box">
-            <label class="file-label"><img src="symbols/add.svg" alt="File" width="16" height="16" style="margin-right: 4px;"> First document</label>
-            <div class="file-input-zone" id="file1Zone">
-              <img class="upload-icon" src="symbols/folder.svg" alt="Folder" width="36" height="36">
-              <div class="upload-text">Select file</div>
-              <div class="upload-subtext">PDF, Word, Excel, CSV, or plain text</div>
-            </div>
-            <div class="file-info" id="file1" style="display: none;"></div>
-          </div>
+      <div class="card workspace-card">
+        <h2 class="workspace-heading">Your documents</h2>
+        <p class="workspace-lead">Start here: add <strong>any files</strong> or a whole folder. Then use AI (below) or compare 2 or more files (bottom).</p>
 
-          <div class="file-box">
-            <label class="file-label"><img src="symbols/add.svg" alt="File" width="16" height="16" style="margin-right: 4px;"> Second document</label>
-            <div class="file-input-zone" id="file2Zone">
-              <img class="upload-icon" src="symbols/folder.svg" alt="Folder" width="36" height="36">
-              <div class="upload-text">Select file</div>
-              <div class="upload-subtext">PDF, Word, Excel, CSV, or plain text</div>
-            </div>
-            <div class="file-info" id="file2" style="display: none;"></div>
+        <label class="file-label"><img src="symbols/add.svg" alt="" width="16" height="16" style="margin-right: 4px;"> Add files</label>
+        <div class="file-input-zone ai-upload-single" id="analyzeDropZone" tabindex="0" role="button" aria-label="Add files or drag and drop">
+          <img class="upload-icon" src="symbols/folder.svg" alt="" width="36" height="36">
+          <div class="upload-text">Add documents</div>
+          <div class="upload-subtext">Click or drag files here · any file type · or use Add folder</div>
+          <div class="ai-zone-actions">
+            <button type="button" class="btn-zone-link" id="analyzeAddFolderBtn" data-analyze-action="folder">Add folder</button>
+            <span class="ai-zone-sep" aria-hidden="true">·</span>
+            <button type="button" class="btn-zone-link" id="analyzeClearListBtn" data-analyze-action="clear">Clear list</button>
           </div>
         </div>
+        <p id="analyzeFileListSummary" class="analyze-summary">No files in your list yet.</p>
 
-        <div class="action-section">
-          <button class="btn btn-primary" id="compare">
-            <img class="btn-icon" src="symbols/attach.svg" alt="Lightning" width="20" height="20">
-            <span class="btn-text">Compare Documents</span>
+        <h3 class="workspace-subheading">AI analysis</h3>
+        <label class="file-label" for="analyzePrompt">Your question or instructions</label>
+        <textarea id="analyzePrompt" class="prompt-textarea" rows="4" placeholder="Describe how you want the AI to read your files (summaries, part numbers, differences, etc.)."></textarea>
+        <div class="action-section ai-analyze-actions">
+          <button type="button" class="btn btn-primary" id="analyzeRunBtn">
+            <img class="btn-icon" src="symbols/attach.svg" alt="" width="20" height="20">
+            <span class="btn-text">Search</span>
           </button>
+          <div id="analyzeStatus" class="inline-status"></div>
           <div id="status"></div>
           <div id="progress">
             <div class="progress-bar">
@@ -724,11 +904,12 @@
             <div class="progress-text">Processing files...</div>
           </div>
         </div>
+        <p class="ai-env-note">AI needs <code>GEMINI_API_KEY</code> in your environment (e.g. <code>.env</code>). Large batches may be truncated.</p>
       </div>
 
       <div class="card results-section" id="resultsCard">
         <div class="results-header">
-          <div class="results-title"><img src="symbols/check.svg" alt="Check" width="24" height="24" style="margin-right: 8px;"> What we found</div>
+          <div class="results-title"><img src="symbols/check.svg" alt="Check" width="24" height="24" style="margin-right: 8px;"> <span id="resultsTitleText">What we found</span></div>
           <div class="results-stats">
             <div class="stat">
               <div class="stat-value" id="changeCount">0</div>

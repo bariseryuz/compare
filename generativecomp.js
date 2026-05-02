@@ -84,13 +84,10 @@ Rules:
         file2Label: base2,
         kind1: docKindFromExt(path.extname(file1)),
         kind2: docKindFromExt(path.extname(file2)),
-        plainEnglish: 'AI comparison focused on part numbers and substantive differences.',
-        plainEnglishSub:
-          'This mode reads both documents as a whole and highlights which part numbers (and related codes) differ, not line-by-line layout. The detailed report is below.',
-        bullets: [
-          `Model: ${modelId}. Identifiers are inferred from extracted text; verify critical codes against the originals.`,
-          'Large files may be truncated before sending to the model.'
-        ],
+        aiOnly: true,
+        plainEnglish: '',
+        plainEnglishSub: '',
+        bullets: [`Model: ${modelId}.`],
         similarityPct: undefined,
         mutualLines: undefined,
         diffLineCounts: { added: 0, removed: 0, total: 0 },

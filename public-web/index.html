@@ -17,12 +17,46 @@
       </div>
       <p class="tagline">Document Comparison Tool</p>
       <p class="help-banner">
-        <strong>What it does:</strong> DocCompare reads the text from two files and compares them. You get a brief plain-English summary plus a color-coded breakdown—what’s only in the first document, only in the second, and what matches in both. Supports PDF, Word, Excel, CSV, and plain text.
+        <strong>One workspace:</strong> add <strong>any files</strong> or a folder at the top, then use <strong>AI</strong> or <strong>compare</strong> two files below. The server never changes your originals.
       </p>
     </div>
 
     <div class="main">
-      <div class="card">
+      <div class="card workspace-card">
+        <input type="file" id="analyzeFilesInput" class="file-input-hidden" multiple aria-label="Add files">
+        <input type="file" id="analyzeFolderInput" class="file-input-hidden" webkitdirectory multiple aria-label="Add folder">
+        <h2 class="workspace-heading">Your documents</h2>
+        <p class="workspace-lead">Start here: add <strong>any file types</strong> or a whole folder. Then scroll down for AI or side-by-side compare.</p>
+
+        <label class="file-label"><img src="/symbols/add.svg" alt="" width="16" height="16" style="margin-right: 4px;"> Add files</label>
+        <div class="file-input-zone ai-upload-single" id="analyzeUploadZone" tabindex="0" role="button" aria-label="Add files or drag and drop">
+          <img class="upload-icon" src="/symbols/folder.svg" alt="" width="36" height="36">
+          <div class="upload-text">Add documents</div>
+          <div class="upload-subtext">Click or drag files here · any file type · or use Add folder</div>
+          <div class="ai-zone-actions">
+            <button type="button" class="btn-zone-link" id="analyzePickFolder" data-analyze-action="folder">Add folder</button>
+            <span class="ai-zone-sep" aria-hidden="true">·</span>
+            <button type="button" class="btn-text btn-zone-clear" id="analyzeClearFiles" data-analyze-action="clear">Clear list</button>
+          </div>
+        </div>
+        <p class="analyze-file-summary" id="analyzeFileSummary">No files in your list yet.</p>
+
+        <h3 class="workspace-subheading">AI analysis</h3>
+        <label class="file-label" for="analyzePrompt">Your question or instructions</label>
+        <textarea id="analyzePrompt" class="prompt-textarea" rows="4" placeholder="Describe how you want the AI to read your files."></textarea>
+        <div class="action-section analyze-actions">
+          <button type="button" class="btn btn-primary" id="analyzeBtn">
+            <img class="btn-icon" src="/symbols/attach.svg" alt="" width="20" height="20">
+            <span class="btn-text">Run AI analysis</span>
+          </button>
+          <div id="analyzeStatus" class="inline-status"></div>
+        </div>
+        <p class="section-note">Requires <code>GEMINI_API_KEY</code> on the server. Large uploads may be truncated.</p>
+
+        <hr class="workspace-divider" />
+
+        <h3 class="workspace-subheading">Compare two documents</h3>
+        <p class="workspace-compare-hint">Pick two files for a diff (separate from the list above).</p>
         <div class="files-grid">
           <div class="file-box">
             <label class="file-label"><img src="/symbols/add.svg" alt="" width="16" height="16" style="margin-right: 4px;"> First document</label>
@@ -30,7 +64,7 @@
             <div class="file-input-zone" id="file1Zone" tabindex="0" role="button">
               <img class="upload-icon" src="/symbols/folder.svg" alt="" width="36" height="36">
               <div class="upload-text">Select file</div>
-              <div class="upload-subtext">PDF, Word, Excel, CSV, or plain text</div>
+              <div class="upload-subtext">Any file type</div>
             </div>
             <div class="file-info" id="file1" style="display: none;"></div>
           </div>
@@ -41,7 +75,7 @@
             <div class="file-input-zone" id="file2Zone" tabindex="0" role="button">
               <img class="upload-icon" src="/symbols/folder.svg" alt="" width="36" height="36">
               <div class="upload-text">Select file</div>
-              <div class="upload-subtext">PDF, Word, Excel, CSV, or plain text</div>
+              <div class="upload-subtext">Any file type</div>
             </div>
             <div class="file-info" id="file2" style="display: none;"></div>
           </div>
@@ -64,7 +98,7 @@
 
       <div class="card results-section" id="resultsCard">
         <div class="results-header">
-          <div class="results-title"><img src="/symbols/check.svg" alt="" width="24" height="24" style="margin-right: 8px;"> What we found</div>
+          <div class="results-title" id="resultsTitle"><img src="/symbols/check.svg" alt="" width="24" height="24" style="margin-right: 8px;" id="resultsTitleIcon"> <span id="resultsTitleText">What we found</span></div>
           <div class="results-stats">
             <div class="stat">
               <div class="stat-value" id="changeCount">0</div>

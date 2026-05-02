@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   selectFile: () => ipcRenderer.invoke('select-file'),
+  selectMultipleFiles: () => ipcRenderer.invoke('select-multiple-files'),
+  selectFolderFiles: () => ipcRenderer.invoke('select-folder-files'),
+  analyzeWithPrompt: (payload) => ipcRenderer.invoke('analyze-with-prompt', payload),
   compareFiles: (f1, f2) => ipcRenderer.invoke('compare-files', f1, f2),
   getFileSize: (filepath) => ipcRenderer.invoke('get-file-size', filepath),
   validateFilePath: (filepath) => ipcRenderer.invoke('validate-file-path', filepath),
