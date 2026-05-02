@@ -251,14 +251,22 @@ async function extractPdfText(filepath) {
     const pdf = await pdfParse(data);
 
     let text = pdf.text;
-    text = text.replace(/([a-zA-Z])\n([a-z][a-z]+)/g, '$1$2');
-    text = text.replace(/\r/g, '');
-    text = text.replace(/[ ]+/g, ' ');
-    text = text
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .join('\n');
+
+    // Normalize Windows line endings
+    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Collapse runs of spaces/tabs on each line but keep newlines intact
+    text = text.split('\n').map((line) => line.replace(/[ \t]+/g, ' ').trim()).join('\n');
+
+    // Join lines that look like mid-word breaks (lower-case letter continues on next line)
+    text = text.replace(/([a-zA-Z])-\n([a-z])/g, '$1$2');
+    text = text.replace(/([a-z,;])\n([a-z])/g, '$1 $2');
+
+    // Collapse 3+ consecutive blank lines to 2 (preserve paragraph structure)
+    text = text.replace(/\n{3,}/g, '\n\n');
+
+    // Drop lines that are only whitespace
+    text = text.split('\n').filter((l) => l.trim().length > 0).join('\n');
 
     return text;
   } catch (err) {
@@ -303,8 +311,27 @@ async function extractExcelText(filepath) {
     workbook.SheetNames.forEach((sheetName) => {
       const sheet = workbook.Sheets[sheetName];
       if (!sheet) return;
-      const csv = XLSX.utils.sheet_to_csv(sheet);
-      fullText += `--- Sheet: ${sheetName} ---\n${csv}\n\n`;
+
+      // Use sheet_to_json to preserve row context better than raw CSV
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+      if (!rows.length) {
+        fullText += `--- Sheet: ${sheetName} (empty) ---\n\n`;
+        return;
+      }
+
+      // First row is treated as a header if it looks like one (non-numeric dominant)
+      const header = rows[0];
+      const headerLine = header.map((c) => String(c).trim()).join(' | ');
+      fullText += `--- Sheet: ${sheetName} (${rows.length - 1} rows, ${header.length} columns) ---\n`;
+      fullText += `Columns: ${headerLine}\n\n`;
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const cells = row.map((c) => String(c === null || c === undefined ? '' : c).trim());
+        // Label each row with its row number for easy reference
+        fullText += `Row ${i}: ${cells.join(' | ')}\n`;
+      }
+      fullText += '\n';
     });
 
     return fullText.trim();
@@ -343,16 +370,21 @@ async function extractLargeTextFile(filepath) {
 
 async function extractDocxText(filepath) {
   try {
+    // extractRawText gives plain text; mammoth also has convertToHtml but raw is cleaner for AI
     const result = await mammoth.extractRawText({ path: filepath });
 
     let text = result.value;
-    text = text
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .join('\n');
 
-    return text;
+    // Normalize line endings
+    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Trim each line but keep blank lines (they separate paragraphs)
+    text = text.split('\n').map((line) => line.trim()).join('\n');
+
+    // Collapse 3+ blank lines to 2
+    text = text.replace(/\n{3,}/g, '\n\n');
+
+    return text.trim();
   } catch (err) {
     throw new Error(`Word (DOCX) parsing failed: ${err.message}`);
   }
